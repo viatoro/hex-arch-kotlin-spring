@@ -1,0 +1,6 @@
+spring:
+  cloud:
+    function:
+      scan:
+        enabled: false
+      definition: getAllProductsFunction

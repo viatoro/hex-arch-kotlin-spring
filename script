@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+TERRAFORM_DOCKER_IMAGE="hashicorp/terraform:1.13.1"
+_TF_PATH="${_TF_PATH:=infrastructure/lambda}"
+
+help__build="clean up, test, verify code coverage and build jar"
+task_build() {
+  docker_ensure_volume gradle-cache
+  _DOCKER_IMAGE="$(docker build -f toolchain-containers/Dockerfile.graalvm_arm . -q)"
+  add_docker_opts "-v gradle-cache:/home/gradle/.gradle"
+  docker_run gradle nativeBuild
+}
+
+help__package="package from nativeBuild into dist folder for terraform"
+task_package() {
+  echo "Creating lambda deployment package..."
+  
+  # Create dist directory
+  mkdir -p infrastructure/lambda/dist
+  rm -rf infrastructure/lambda/dist/*
+  
+  # Check if bootstrap file exists in shell/native
+  if [ -f "shell/native/bootstrap" ]; then
+    echo "Copying bootstrap from shell/native/"
+    cp shell/native/bootstrap infrastructure/lambda/dist/
+    chmod 775 infrastructure/lambda/dist/bootstrap
+  else
+    echo "Warning: bootstrap file not found at shell/native/bootstrap"
+  fi
+  
+  # Check for the native binary
+  if [ -f "exhibition-lambda/build/native/nativeCompile/lambda" ]; then
+    echo "Copying native binary as springboot-lambda-function"
+    cp exhibition-lambda/build/native/nativeCompile/lambda infrastructure/lambda/dist/springboot-lambda-function
+    chmod 775 infrastructure/lambda/dist/springboot-lambda-function
+  else
+    echo "Warning: native binary not found at lambda/build/native/nativeCompile/lambda"
+  fi
+  
+  echo "Package created in infrastructure/lambda/dist/"
+  echo "Contents:"
+  ls -la infrastructure/lambda/dist/
+}
+
+help__apply="provision application infrastructure [./go apply <env>]"
+task_apply() {
+  if [ "$_TF_PATH" == "infrastructure/bucket" ]
+  then
+    rm -rf infrastructure/bucket/dist
+    mkdir -p infrastructure/bucket/dist
+    cp -R dist/* infrastructure/bucket/dist
+    find infrastructure/bucket/dist -type f -exec gzip -9 "{}" \; -exec mv "{}.gz" "{}" \;
+  fi
+
+  terraform init
+  local tf_env=$1
+  terraform workspace select $tf_env || terraform workspace new $tf_env
+  terraform apply -var-file="./var-$tf_env.tfvars"
+}
+
+help__destroy="destroy application infrastructure [./go destroy <env>]"
+task_destroy() {
+  terraform init
+  local tf_env=$1
+  terraform workspace select $tf_env || terraform workspace new $tf_env
+  terraform destroy -var-file="./var-$tf_env.tfvars"
+}
+
+source ./script-helpers/script

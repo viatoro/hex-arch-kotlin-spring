@@ -1,0 +1,79 @@
+#!/bin/bash
+
+
+_DOCKER_RESULT_FILE=$(mktemp)
+
+add_docker_opts() {
+  [ -z "${_DOCKER_OPTS}" ] && _DOCKER_OPTS="${1}" || _DOCKER_OPTS+=" ${1}"
+}
+
+docker_ensure_volume() {
+  docker volume inspect $1 >/dev/null 2>&1 || docker volume create $1 >/dev/null 2>&1
+}
+
+runs_inside_ci() {
+  test -n "${CI}"
+}
+
+docker_run(){
+  if [ -z "${_DOCKER_IMAGE}" ]; then
+    echo -n "Building toolchain container; this might take a while..."
+    _DOCKER_IMAGE=$(docker build ${_DOCKER_BUILD_ARGS} . -q)
+    echo " Done."
+  fi
+
+  if runs_inside_ci; then
+    add_docker_opts "-v pipelines:/godata/pipelines"
+    add_docker_opts "-v /var/run/secrets/eks.amazonaws.com/serviceaccount/:/var/run/secrets/eks.amazonaws.com/serviceaccount/"
+    add_docker_opts "-v godata:/godata"
+    add_docker_opts "-v $(pwd):$(pwd)"
+    add_docker_opts "-w $(pwd)"
+  else
+    add_docker_opts "-it -v $(pwd):/workspace:cached -w /workspace"
+    add_docker_opts "-v ${HOME}/.aws:/root/.aws"
+  fi
+  add_docker_opts "-v /var/run/docker.sock:/var/run/docker.sock"
+
+  docker run --rm \
+    --hostname $(hostname) \
+    --env-file <(env | grep PACT_) \
+    --env-file <(env | grep AWS_) \
+    --env-file <(env | grep SONAR_) \
+    --env-file <(env | grep NVD_) \
+    --env-file <(env | grep TWISTLOCK_) \
+    --env-file <(env | grep TF_) \
+    --env-file <(env | grep GO_) \
+    --env-file <(env | grep NODE_) \
+    --env-file <(env | grep NUXT_) \
+    ${_DOCKER_OPTS} ${_DOCKER_IMAGE} "$@"
+  local dkr_exit_code=$?
+  echo $dkr_exit_code > $_DOCKER_RESULT_FILE
+
+  return $dkr_exit_code
+
+}
+
+gradle() {
+  docker_ensure_volume gradle-cache
+  _DOCKER_IMAGE="${GRADLE_DOCKER_IMAGE}"
+  add_docker_opts "-v gradle-cache:/home/gradle/.gradle"
+  docker_run gradle "$@"
+}
+
+tf() {
+  _DOCKER_IMAGE="${TERRAFORM_DOCKER_IMAGE}"
+  if runs_inside_ci; then
+      add_docker_opts "-u $(id -u)"
+      docker_run "$@" $_TF_ARGS
+    else
+      docker_run "$@" $_TF_ARGS
+    fi
+}
+
+terraform() {
+  [ ! -z "${_TF_PATH}" ] && pushd "${_TF_PATH}"
+  tf "$@"
+  local exit=$?
+  [ ! -z "${_TF_PATH}" ] && popd
+  return $exit
+}
