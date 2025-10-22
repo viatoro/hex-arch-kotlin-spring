@@ -69,8 +69,8 @@ The architecture enforces strict separation of concerns, making the business log
 
 ```
 hex-arch-kotlin-spring-boot/
-├── example-domain/              # Core business logic (no dependencies)
-│   └── src/main/kotlin/com/example/
+├── platform-domain/              # Core business logic (no dependencies)
+│   └── src/main/kotlin/com/wtech/
 │       ├── ecommerce/
 │       │   ├── application/
 │       │   │   ├── repositories/    # Repository ports
@@ -86,14 +86,14 @@ hex-arch-kotlin-spring-boot/
 │               ├── model/           # Domain entities
 │               └── value/           # Value objects & DTOs
 │
-├── example-lambda/              # Inbound adapters (AWS Lambda)
-│   └── src/main/kotlin/com/example/
+├── platform-lambda/              # Inbound adapters (AWS Lambda)
+│   └── src/main/kotlin/com/wtech/
 │       ├── common/config/
 │       ├── ecommerce/adapters/inbound/function/
 │       └── user/adapters/inbound/function/
 │
-├── example-outbound/            # Outbound adapters (DynamoDB)
-│   └── src/main/kotlin/com/example/
+├── platform-outbound/            # Outbound adapters (DynamoDB)
+│   └── src/main/kotlin/com/wtech/
 │       ├── ecommerce/adapters/outbound/repositories/
 │       └── user/adapters/outbound/repositories/
 │
@@ -382,7 +382,7 @@ SK: METADATA
 See [LICENSE](LICENSE) file for details.
 
 ## Resources
-
+123
 - [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
 - [Domain-Driven Design](https://martinfowler.com/tags/domain%20driven%20design.html)
 - [AWS Lambda with Kotlin](https://docs.aws.amazon.com/lambda/latest/dg/lambda-kotlin.html)
